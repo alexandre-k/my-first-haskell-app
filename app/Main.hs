@@ -1,9 +1,30 @@
 module Main (main) where
 
+import Data.Monoid
 import Options.Applicative hiding (infoParser)
 
+
 type ItemIndex = Int
+type ItemTitle = String
 type ItemDescription = Maybe String
+type ItemPriority = Maybe String
+type ItemDueBy = Maybe String
+
+
+data Item = ItemIndex
+  { title :: ItemTitle
+  , description :: ItemDescription
+  , priority :: ItemPriority
+  , dueBy :: ItemDueBy
+  } deriving Show
+
+
+data ItemUpdate = ItemUpdate
+    { titleUpdate :: Maybe ItemTitle
+    , descriptionUpdate :: Maybe ItemDescription
+    , priorityUpdate :: Maybe ItemPriority
+    , dueByUpdate :: Maybe ItemDueBy
+    } deriving Show
 
 data Options = Options FilePath Command deriving Show
 
@@ -11,10 +32,10 @@ data Command =
   Info
   | Init
   | List
-  | Add
-  | View
-  | Update
-  | Remove
+  | Add Item
+  | View ItemIndex
+  | Update ItemIndex ItemUpdate
+  | Remove ItemIndex
   deriving Show
 
 
@@ -35,19 +56,49 @@ listParser = pure List
 
 
 addParser :: Parser Command
-addParser = pure Add
+addParser = Add <$> addItemParser
 
 
 viewParser :: Parser Command
-viewParser = pure View
+viewParser = View <$> itemIndexParser
 
 
 updateParser :: Parser Command
-updateParser = pure Update
+updateParser = Update <$> itemIndexParser <*> updateItemParser
+
+
+updateItemParser :: Parser ItemUpdate
+updateItemParser = ItemUpdate
+  <$> optional updateItemTitleParser
+  <*> optional updateItemDescriptionParser
+  <*> optional updateItemPriorityParser
+  <*> optional updateItemDueByParser
+
+
+updateItemTitleParser :: Parser ItemTitle
+updateItemTitleParser = itemTitleValueParser
+
+
+updateItemDescriptionParser :: Parser ItemDescription
+updateItemDescriptionParser =
+  Just <$> itemDescriptionValueParser
+  <|> flag' Nothing (long "clear-desc")
+
+  
+updateItemPriorityParser :: Parser ItemPriority
+updateItemPriorityParser =
+  Just <$> itemPriorityValueParser
+  <|> flag' Nothing (long "clear-priority")
+
+
+updateItemDueByParser :: Parser ItemDueBy
+updateItemDueByParser =
+  Just <$> itemDueByValueParser
+  <|> flag' Nothing (long "clear-dueby")
 
 
 removeParser :: Parser Command
-removeParser = pure Remove
+removeParser = Remove <$> itemIndexParser
 
 
 commandParser :: Parser Command
@@ -81,20 +132,26 @@ itemIndexParser :: Parser ItemIndex
 itemIndexParser = argument auto (metavar "ITEMINDEX" <> help "index of item")
 
 
+itemTitleValueParser :: Parser String
+itemTitleValueParser =
+  strOption (long "title" <> short 't' <> metavar "TITLE" <> help "title")
+
 itemDescriptionValueParser :: Parser String
 itemDescriptionValueParser =
   strOption (long "desc" <> short 'd' <> metavar "DESCRIPTION" <> help "description")
 
 
-updateItemDescriptionParser :: Parser ItemDescription
-updateItemDescriptionParser =
-  Just <$> itemDescriptionValueParser
-  <|> flag' Nothing (long "clear-desc")
-
-
 main :: IO ()
 main = do
-  options <- execParser (info (optionsParser) (progDesc "To-do list manager"))
-  putStrLn $ "options=" ++ show options
-  itemIndex <- execParser (info (itemIndexParser) (progDesc "To-do list manager"))
-  putStrLn $ "itemIndex=" ++ show itemIndex
+  Options dataPath command <- execParser (info (optionsParser) (progDesc "To-do list manager"))
+  run dataPath command
+
+
+run :: FilePath -> Command -> IO ()
+run dataPath Info = putStrLn "Info"
+run dataPath Init = putStrLn "Init"
+run dataPath List = putStrLn "List"
+run dataPath (Add item) = putStrLn $ "Add: item=" ++ show item
+run dataPath (View idx) = putStrLn $ "View: idx=" ++ show idx
+run dataPath (Update idx itemUpdate) = putStrLn $ "Update: idx=" ++ show idx ++ " itemUpdapte=" ++ show ItemUpdate
+run dataPath (Remove idx) = putStrLn "Remove: idx=" ++ show idx
